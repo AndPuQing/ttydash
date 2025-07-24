@@ -27,10 +27,11 @@ pub struct Dash {
 
     command_tx: Option<UnboundedSender<Action>>,
     stop_signal: Arc<AtomicBool>,
+    is_paused: Arc<AtomicBool>,
 }
 
 impl Dash {
-    pub fn new(args: Cli) -> Self {
+    pub fn new(args: Cli, is_paused: Arc<AtomicBool>) -> Self {
         let bar_set = bar::Set {
             full: "⣿",
             seven_eighths: "⣾",
@@ -50,6 +51,7 @@ impl Dash {
             args.indices,
             args.update_frequency,
             stop_signal.clone(),
+            is_paused.clone(),
         );
         task::spawn(data_pipeline.run());
 
@@ -61,6 +63,7 @@ impl Dash {
             bar_set,
             layout: args.layout.unwrap_or_default(),
             stop_signal,
+            is_paused,
         }
     }
 }
@@ -81,7 +84,7 @@ fn generate_time_markers(window_size: u16, state_len: usize) -> Vec<Span<'static
         .scan(0, |last_label_len, &time| {
             let pos = window_size - time - 1;
             if pos < window_size {
-                let time_marker = format!("{}s", time);
+                let time_marker = format!("{time}s");
                 let time_marker_len = time_marker.len() + 1;
                 let spacing = "─".repeat(30 * state_len - *last_label_len);
                 *last_label_len = time_marker_len;
@@ -114,7 +117,11 @@ impl Dash {
             .block(
                 Block::default()
                     .border_type(BorderType::Rounded)
-                    .title(Line::from("Group Chart").right_aligned()) // Add chart title
+                    .title(Line::from(if self.is_paused.load(Ordering::Relaxed) {
+                        "Group Chart ⏸"
+                    } else {
+                        "Group Chart"
+                    }).right_aligned()) // Add chart title
                     .title_bottom(Line::from(span_vec)) // Add time markers
                     .title_alignment(Alignment::Right)
                     .borders(Borders::ALL),
@@ -175,12 +182,15 @@ impl Dash {
     }
 
     fn draw_chart(&mut self, frame: &mut Frame, area: &Rect, i: usize) -> Result<()> {
-        let title = self
+        let mut title = self
             .titles
             .as_ref()
             .and_then(|titles| titles.get(i))
             .unwrap_or(&format!("Chart {}", i + 1))
             .to_string();
+        if self.is_paused.load(Ordering::Relaxed) {
+            title.push_str(" ⏸");
+        }
         let state = self.state.read().unwrap();
         let state = &state[i];
         let chart_state = &state.data;

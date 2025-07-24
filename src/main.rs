@@ -23,18 +23,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         match cmd {
             Commands::Add(args) => {
                 if let Err(e) = config::add_regex(&args.name, &args.regex) {
-                    eprintln!("Error adding regex: {}", e);
+                    eprintln!("Error adding regex: {e}");
                 }
             }
             Commands::Remove(args) => {
                 if let Err(e) = config::remove_regex(&args.name) {
-                    eprintln!("Error removing regex: {}", e);
+                    eprintln!("Error removing regex: {e}");
                 }
             }
             Commands::List => {
                 let regexes = config::get_regexes().unwrap();
                 for (name, regex) in regexes {
-                    println!("{:<10}: {}", name, regex);
+                    println!("{name:<10}: {regex}");
                 }
             }
         }

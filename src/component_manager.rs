@@ -1,3 +1,5 @@
+use std::sync::{atomic::AtomicBool, Arc};
+
 use color_eyre::Result;
 use ratatui::{
     layout::{Rect, Size},
@@ -17,9 +19,9 @@ pub struct ComponentManager {
 }
 
 impl ComponentManager {
-    pub fn new(args: crate::cli::Cli) -> Self {
+    pub fn new(args: crate::cli::Cli, is_paused: Arc<AtomicBool>) -> Self {
         Self {
-            components: vec![Box::new(Dash::new(args))],
+            components: vec![Box::new(Dash::new(args, is_paused))],
         }
     }
 

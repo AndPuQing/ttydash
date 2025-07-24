@@ -56,6 +56,7 @@ pub struct DataPipeline {
     indices: Option<Vec<usize>>,
     update_frequency: u64,
     stop_signal: Arc<AtomicBool>,
+    is_paused: Arc<AtomicBool>,
 }
 
 impl DataPipeline {
@@ -65,6 +66,7 @@ impl DataPipeline {
         indices: Option<Vec<usize>>,
         update_frequency: u64,
         stop_signal: Arc<AtomicBool>,
+        is_paused: Arc<AtomicBool>,
     ) -> Self {
         Self {
             state,
@@ -72,6 +74,7 @@ impl DataPipeline {
             indices,
             update_frequency,
             stop_signal,
+            is_paused,
         }
     }
 
@@ -80,13 +83,16 @@ impl DataPipeline {
         let mut lines = BufReader::new(stdin).lines();
         while !self.stop_signal.load(Ordering::Relaxed) {
             tokio::time::sleep(tokio::time::Duration::from_millis(self.update_frequency)).await;
+            if self.is_paused.load(Ordering::Relaxed) {
+                continue;
+            }
             if let Ok(Some(line)) = lines.next_line().await {
                 let mut state = self.state.write().unwrap();
                 if !self.units.is_empty() {
                     for (i, unit) in self.units.iter().enumerate() {
                         let unit_str = unit.to_string();
                         let re =
-                            regex::Regex::new(&format!(r"(?i)\b(\d+(\.\d+)?)\s*{}\b", unit_str))
+                            regex::Regex::new(&format!(r"(?i)\b(\d+(\.\d+)?)\s*{unit_str}\b"))
                                 .unwrap();
                         if let Some(captures) = re.captures(&line) {
                             let value = captures

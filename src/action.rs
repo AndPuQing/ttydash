@@ -8,6 +8,7 @@ pub enum Action {
     Resize(u16, u16),
     Suspend,
     Resume,
+    TogglePause,
     Quit,
     ClearScreen,
     Error(String),

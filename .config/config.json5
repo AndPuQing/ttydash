@@ -3,7 +3,8 @@
         "<q>": "Quit",
         "<Ctrl-d>": "Quit",
         "<Ctrl-c>": "Quit",
-        "<Ctrl-z>": "Suspend"
+        "<Ctrl-z>": "Suspend",
+        "<space>": "TogglePause"
     },
     "match_rules": {
         "ping": "time=(\\d+\\.\\d+) ms",

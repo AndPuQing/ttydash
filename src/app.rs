@@ -1,3 +1,8 @@
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
+
 use color_eyre::Result;
 use crossterm::event::KeyEvent;
 use ratatui::prelude::Rect;
@@ -18,6 +23,7 @@ pub struct App {
     component_manager: ComponentManager,
     should_quit: bool,
     should_suspend: bool,
+    is_paused: Arc<AtomicBool>,
     last_tick_key_events: Vec<KeyEvent>,
     action_tx: mpsc::UnboundedSender<Action>,
     action_rx: mpsc::UnboundedReceiver<Action>,
@@ -26,13 +32,15 @@ pub struct App {
 impl App {
     pub fn new(args: crate::cli::Cli) -> Result<Self> {
         let (action_tx, action_rx) = mpsc::unbounded_channel();
-        let component_manager = ComponentManager::new(args.clone());
+        let is_paused = Arc::new(AtomicBool::new(false));
+        let component_manager = ComponentManager::new(args.clone(), is_paused.clone());
         Ok(Self {
             tick_rate: args.tick_rate,
             frame_rate: args.frame_rate,
             component_manager,
             should_quit: false,
             should_suspend: false,
+            is_paused,
             config: Config::new()?,
             last_tick_key_events: Vec::new(),
             action_tx,
@@ -117,6 +125,10 @@ impl App {
                 Action::Tick => {
                     self.last_tick_key_events.drain(..);
                 }
+                Action::TogglePause => {
+                    let new_state = !self.is_paused.load(Ordering::Relaxed);
+                    self.is_paused.store(new_state, Ordering::Relaxed);
+                }
                 Action::Quit => self.should_quit = true,
                 Action::Suspend => self.should_suspend = true,
                 Action::Resume => self.should_suspend = false,
@@ -143,7 +155,7 @@ impl App {
             if let Err(err) = self.component_manager.draw(frame, frame.area()) {
                 let _ = self
                     .action_tx
-                    .send(Action::Error(format!("Failed to draw: {:?}", err)));
+                    .send(Action::Error(format!("Failed to draw: {err:?}")));
             }
         })?;
         Ok(())
