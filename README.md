@@ -103,3 +103,15 @@ Options:
   -h, --help                    Print help
   -V, --version                 Print version
 ```
+
+## Future Features (TODO)
+
+- [ ] **Data Threshold Highlighting**: Allow users to set thresholds. When data exceeds or falls below a certain value, the chart's color will change, useful for monitoring and alerts.
+- [ ] **Advanced Layout System**: Building on the existing auto-layout, allow users to define a more complex grid layout through a configuration file, enabling precise control over each chart's position and size.
+- [ ] **Data Persistence**: Add a feature to save incoming data to a local file and allow loading of historical data on startup for analysis.
+- [ ] **Chart Interaction**: Implement chart zoom and pan functionalities to allow users to analyze historical data in detail.
+- [ ] **Runtime Configuration**: Allow users to modify configurations like titles, units, etc., through interactive commands while `ttydash` is running.
+- [ ] **Multiple Data Sources**: In addition to `stdin`, support more data sources:
+  - [ ] **File Source**: Monitor a file for new content, similar to `tail -f`.
+  - [ ] **Command Source**: Periodically execute a command and use its output as a data source.
+  - [ ] **Network Source**: Listen on a TCP or UDP port to receive data streams.
