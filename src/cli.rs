@@ -15,7 +15,7 @@ pub enum Layout {
     Auto,
 }
 
-#[derive(Parser, Debug)]
+#[derive(Parser, Debug, Clone)]
 #[command(author, version = version(), about)]
 pub struct Cli {
     /// Tick rate, i.e. number of ticks per second
@@ -62,7 +62,7 @@ pub struct Cli {
     pub cmd: Option<Commands>,
 }
 
-#[derive(Subcommand, Debug)]
+#[derive(Subcommand, Debug, Clone)]
 pub enum Commands {
     /// Add a new regex to the list of regexes
     Add(AddArgs),
@@ -71,7 +71,7 @@ pub enum Commands {
     /// List all regexes
     List,
 }
-#[derive(Args, Debug)]
+#[derive(Args, Debug, Clone)]
 pub struct AddArgs {
     /// Name of the regex
     #[arg(short, long)]
@@ -81,7 +81,7 @@ pub struct AddArgs {
     pub regex: String,
 }
 
-#[derive(Args, Debug)]
+#[derive(Args, Debug, Clone)]
 pub struct RemoveArgs {
     /// The name of the regex to remove
     #[arg(short, long)]

@@ -7,70 +7,23 @@ use super::Component;
 use crate::{
     action::Action,
     cli::{self, Cli},
+    data_pipeline::{DashState, DataPipeline},
 };
 use color_eyre::Result;
 
 use ratatui::{prelude::*, widgets::*};
 
 use symbols::bar;
-use tokio::{io::AsyncBufReadExt, sync::mpsc::UnboundedSender, task};
-
-#[derive(Debug, Clone)]
-struct DashState {
-    data: Vec<f64>,
-    unit: String,
-    length: usize,
-    min_value: f64,
-    max_value: f64,
-    average: f64,
-}
-
-impl DashState {
-    fn new(size: usize) -> Self {
-        Self {
-            data: vec![0.0; size],
-            unit: String::new(),
-            length: 0,
-            min_value: f64::INFINITY,
-            max_value: f64::NEG_INFINITY,
-            average: 0.0,
-        }
-    }
-
-    fn calculate_stats(&mut self) {
-        let data_slice = &self.data[self.data.len() - self.length..];
-        let sum: f64 = data_slice.iter().sum();
-        let len = data_slice.len() as f64;
-        self.average = sum / len;
-        self.min_value = data_slice.iter().copied().fold(f64::INFINITY, f64::min);
-        self.max_value = data_slice.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-    }
-
-    fn update(&mut self, value: f64) {
-        self.data.rotate_left(1);
-        self.data[0] = value;
-        self.calculate_stats();
-        self.length = std::cmp::min(self.length + 1, self.data.len());
-    }
-}
-
-impl Default for DashState {
-    fn default() -> Self {
-        Self::new(200)
-    }
-}
+use tokio::{sync::mpsc::UnboundedSender, task};
 
 #[derive(Debug, Default, Clone)]
 pub struct Dash {
     bar_set: bar::Set,
-    update_frequency: u64,
     group: bool,
     layout: cli::Layout,
 
     state: Arc<RwLock<Vec<DashState>>>,
     titles: Option<Vec<String>>,
-    units: Vec<String>,
-    indices: Option<Vec<usize>>,
 
     command_tx: Option<UnboundedSender<Action>>,
     stop_signal: Arc<AtomicBool>,
@@ -90,77 +43,25 @@ impl Dash {
             empty: " ",
         };
         let stop_signal = Arc::new(AtomicBool::new(false));
-        let units = args.units.unwrap_or_default();
-        let instance = Self {
+        let state = Arc::new(RwLock::new(vec![DashState::default()]));
+        let data_pipeline = DataPipeline::new(
+            state.clone(),
+            args.units.unwrap_or_default(),
+            args.indices,
+            args.update_frequency,
+            stop_signal.clone(),
+        );
+        task::spawn(data_pipeline.run());
+
+        Self {
             titles: args.titles,
-            state: Arc::new(RwLock::new(vec![DashState::default()])),
-            units,
+            state,
             group: args.group.unwrap_or(false),
-            indices: args.indices,
             command_tx: None,
-            update_frequency: args.update_frequency,
             bar_set,
             layout: args.layout.unwrap_or_default(),
-            stop_signal: stop_signal.clone(),
-        };
-        let cloned_instance = instance.clone();
-        task::spawn(cloned_instance.update_chart(stop_signal));
-        instance
-    }
-
-    async fn update_chart(self, stop_signal: Arc<AtomicBool>) {
-        let stdin = tokio::io::stdin();
-        let mut lines = tokio::io::BufReader::new(stdin).lines();
-        while !stop_signal.load(Ordering::Relaxed) {
-            tokio::time::sleep(tokio::time::Duration::from_millis(self.update_frequency)).await;
-            let line = lines.next_line().await.unwrap().unwrap();
-            let mut state = self.state.write().unwrap();
-            if !self.units.is_empty() {
-                for (i, unit) in self.units.iter().enumerate() {
-                    let unit_str = unit.to_string();
-                    // parse the value with the unit
-                    let re = regex::Regex::new(&format!(r"(?i)\b(\d+(\.\d+)?)\s*{}\b", unit_str))
-                        .unwrap();
-                    if let Some(captures) = re.captures(&line) {
-                        let value = captures
-                            .get(1)
-                            .and_then(|v| v.as_str().parse::<f64>().ok())
-                            .unwrap_or(0.0);
-                        // state.update(value);
-                        state[i].update(value);
-                        state[i].unit = unit_str.to_string();
-                    }
-                }
-            } else if line.split_whitespace().next().is_some() {
-                let values: Vec<f64> = line
-                    .split_whitespace()
-                    .filter_map(|value_str| value_str.parse::<f64>().ok())
-                    .collect();
-                if let Some(indices) = &self.indices {
-                    // Update only the specified indices
-                    if state.len() < values.len() {
-                        state.resize(indices.len(), DashState::default());
-                    }
-                    indices
-                        .iter()
-                        .filter_map(|&index| values.get(index - 1).copied()) // Safe access to values
-                        .enumerate()
-                        .for_each(|(i, value)| state[i].update(value));
-                } else {
-                    if state.len() < values.len() {
-                        state.resize(values.len(), DashState::default());
-                    }
-                    state
-                        .iter_mut()
-                        .zip(values.iter())
-                        .for_each(|(state_item, &value)| {
-                            state_item.update(value);
-                        });
-                }
-            }
+            stop_signal,
         }
-        // release the IO
-        drop(lines);
     }
 }
 

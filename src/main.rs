@@ -5,6 +5,8 @@ use cli::{Cli, Commands};
 mod action;
 mod app;
 mod cli;
+mod data_pipeline;
+mod component_manager;
 mod components;
 mod config;
 mod errors;

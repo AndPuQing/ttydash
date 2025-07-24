@@ -7,7 +7,7 @@ use tracing::{debug, info};
 
 use crate::{
     action::Action,
-    components::{dash::Dash, Component},
+    component_manager::ComponentManager,
     config::Config,
     tui::{Event, Tui},
 };
@@ -16,7 +16,7 @@ pub struct App {
     config: Config,
     tick_rate: f64,
     frame_rate: f64,
-    components: Vec<Box<dyn Component>>,
+    component_manager: ComponentManager,
     should_quit: bool,
     should_suspend: bool,
     mode: Mode,
@@ -34,10 +34,11 @@ pub enum Mode {
 impl App {
     pub fn new(args: crate::cli::Cli) -> Result<Self> {
         let (action_tx, action_rx) = mpsc::unbounded_channel();
+        let component_manager = ComponentManager::new(args.clone());
         Ok(Self {
             tick_rate: args.tick_rate,
             frame_rate: args.frame_rate,
-            components: vec![Box::new(Dash::new(args))],
+            component_manager,
             should_quit: false,
             should_suspend: false,
             config: Config::new()?,
@@ -54,15 +55,11 @@ impl App {
             .frame_rate(self.frame_rate);
         tui.enter()?;
 
-        for component in self.components.iter_mut() {
-            component.register_action_handler(self.action_tx.clone())?;
-        }
-        for component in self.components.iter_mut() {
-            component.register_config_handler(self.config.clone())?;
-        }
-        for component in self.components.iter_mut() {
-            component.init(tui.size()?)?;
-        }
+        self.component_manager
+            .register_action_handler(self.action_tx.clone())?;
+        self.component_manager
+            .register_config_handler(self.config.clone())?;
+        self.component_manager.init(tui.size()?)?;
 
         let action_tx = self.action_tx.clone();
 
@@ -96,10 +93,8 @@ impl App {
             Event::Key(key) => self.handle_key_event(key)?,
             _ => {}
         }
-        for component in self.components.iter_mut() {
-            if let Some(action) = component.handle_events(Some(event.clone()))? {
-                action_tx.send(action)?;
-            }
+        if let Some(action) = self.component_manager.handle_events(Some(event.clone()))? {
+            action_tx.send(action)?;
         }
         Ok(())
     }
@@ -146,11 +141,9 @@ impl App {
                 Action::Render => self.render(tui)?,
                 _ => {}
             }
-            for component in self.components.iter_mut() {
-                if let Some(action) = component.update(action.clone())? {
-                    self.action_tx.send(action)?
-                };
-            }
+            if let Some(action) = self.component_manager.update(action.clone())? {
+                self.action_tx.send(action)?
+            };
         }
         Ok(())
     }
@@ -163,12 +156,10 @@ impl App {
 
     fn render(&mut self, tui: &mut Tui) -> Result<()> {
         tui.draw(|frame| {
-            for component in self.components.iter_mut() {
-                if let Err(err) = component.draw(frame, frame.area()) {
-                    let _ = self
-                        .action_tx
-                        .send(Action::Error(format!("Failed to draw: {:?}", err)));
-                }
+            if let Err(err) = self.component_manager.draw(frame, frame.area()) {
+                let _ = self
+                    .action_tx
+                    .send(Action::Error(format!("Failed to draw: {:?}", err)));
             }
         })?;
         Ok(())
