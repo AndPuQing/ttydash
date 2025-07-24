@@ -117,11 +117,14 @@ impl Dash {
             .block(
                 Block::default()
                     .border_type(BorderType::Rounded)
-                    .title(Line::from(if self.is_paused.load(Ordering::Relaxed) {
-                        "Group Chart ⏸"
-                    } else {
-                        "Group Chart"
-                    }).right_aligned()) // Add chart title
+                    .title(
+                        Line::from(if self.is_paused.load(Ordering::Relaxed) {
+                            "Group Chart ⏸"
+                        } else {
+                            "Group Chart"
+                        })
+                        .right_aligned(),
+                    ) // Add chart title
                     .title_bottom(Line::from(span_vec)) // Add time markers
                     .title_alignment(Alignment::Right)
                     .borders(Borders::ALL),
