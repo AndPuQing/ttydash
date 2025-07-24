@@ -1,7 +1,6 @@
 use color_eyre::Result;
 use crossterm::event::KeyEvent;
 use ratatui::prelude::Rect;
-use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tracing::{debug, info};
 
@@ -19,16 +18,9 @@ pub struct App {
     component_manager: ComponentManager,
     should_quit: bool,
     should_suspend: bool,
-    mode: Mode,
     last_tick_key_events: Vec<KeyEvent>,
     action_tx: mpsc::UnboundedSender<Action>,
     action_rx: mpsc::UnboundedReceiver<Action>,
-}
-
-#[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum Mode {
-    #[default]
-    Home,
 }
 
 impl App {
@@ -42,7 +34,6 @@ impl App {
             should_quit: false,
             should_suspend: false,
             config: Config::new()?,
-            mode: Mode::Home,
             last_tick_key_events: Vec::new(),
             action_tx,
             action_rx,
@@ -100,25 +91,18 @@ impl App {
     }
 
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<()> {
-        let action_tx = self.action_tx.clone();
-        let Some(keymap) = self.config.keybindings.get(&self.mode) else {
-            return Ok(());
-        };
-        match keymap.get(&vec![key]) {
-            Some(action) => {
-                info!("Got action: {action:?}");
-                action_tx.send(action.clone())?;
-            }
-            _ => {
-                // If the key was not handled as a single key action,
-                // then consider it for multi-key combinations.
-                self.last_tick_key_events.push(key);
+        if let Some(action) = self.config.keybindings.get(&vec![key]) {
+            info!("Got action: {action:?}");
+            self.action_tx.send(action.clone())?;
+        } else {
+            // If the key was not handled as a single key action,
+            // then consider it for multi-key combinations.
+            self.last_tick_key_events.push(key);
 
-                // Check for multi-key combinations
-                if let Some(action) = keymap.get(&self.last_tick_key_events) {
-                    info!("Got action: {action:?}");
-                    action_tx.send(action.clone())?;
-                }
+            // Check for multi-key combinations
+            if let Some(action) = self.config.keybindings.get(&self.last_tick_key_events) {
+                info!("Got action: {action:?}");
+                self.action_tx.send(action.clone())?;
             }
         }
         Ok(())

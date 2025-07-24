@@ -85,7 +85,7 @@ pub struct AddArgs {
 pub struct RemoveArgs {
     /// The name of the regex to remove
     #[arg(short, long)]
-    name: String,
+    pub name: String,
 }
 
 const VERSION_MESSAGE: &str = concat!(

@@ -5,10 +5,10 @@ use cli::{Cli, Commands};
 mod action;
 mod app;
 mod cli;
-mod data_pipeline;
 mod component_manager;
 mod components;
 mod config;
+mod data_pipeline;
 mod errors;
 mod logging;
 mod tui;
@@ -21,8 +21,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Cli::parse();
     if let Some(cmd) = &args.cmd {
         match cmd {
-            Commands::Add(_) => {}
-            Commands::Remove(_) => {}
+            Commands::Add(args) => {
+                if let Err(e) = config::add_regex(&args.name, &args.regex) {
+                    eprintln!("Error adding regex: {}", e);
+                }
+            }
+            Commands::Remove(args) => {
+                if let Err(e) = config::remove_regex(&args.name) {
+                    eprintln!("Error removing regex: {}", e);
+                }
+            }
             Commands::List => {
                 let regexes = config::get_regexes().unwrap();
                 for (name, regex) in regexes {

@@ -1,4 +1,7 @@
-use std::sync::{atomic::{AtomicBool, Ordering}, Arc, RwLock};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc, RwLock,
+};
 use tokio::io::{AsyncBufReadExt, BufReader};
 
 #[derive(Debug, Clone)]
@@ -82,8 +85,9 @@ impl DataPipeline {
                 if !self.units.is_empty() {
                     for (i, unit) in self.units.iter().enumerate() {
                         let unit_str = unit.to_string();
-                        let re = regex::Regex::new(&format!(r"(?i)\b(\d+(\.\d+)?)\s*{}\b", unit_str))
-                            .unwrap();
+                        let re =
+                            regex::Regex::new(&format!(r"(?i)\b(\d+(\.\d+)?)\s*{}\b", unit_str))
+                                .unwrap();
                         if let Some(captures) = re.captures(&line) {
                             let value = captures
                                 .get(1)

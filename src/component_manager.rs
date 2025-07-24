@@ -1,5 +1,8 @@
 use color_eyre::Result;
-use ratatui::{layout::{Rect, Size}, Frame};
+use ratatui::{
+    layout::{Rect, Size},
+    Frame,
+};
 use tokio::sync::mpsc;
 
 use crate::{
