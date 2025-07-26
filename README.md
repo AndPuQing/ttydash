@@ -106,7 +106,7 @@ Options:
 
 ## Future Features (TODO)
 
-- [ ] **Data Threshold Highlighting**: Allow users to set thresholds. When data exceeds or falls below a certain value, the chart's color will change, useful for monitoring and alerts.
+- [x] **Data Threshold Highlighting**: Allow users to set thresholds. When data exceeds or falls below a certain value, the chart's color will change, useful for monitoring and alerts.
 - [ ] **Advanced Layout System**: Building on the existing auto-layout, allow users to define a more complex grid layout through a configuration file, enabling precise control over each chart's position and size.
 - [ ] **Data Persistence**: Add a feature to save incoming data to a local file and allow loading of historical data on startup for analysis.
 - [ ] **Chart Interaction**: Implement chart zoom and pan functionalities to allow users to analyze historical data in detail.
