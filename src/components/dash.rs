@@ -24,10 +24,33 @@ pub struct Dash {
 
     state: Arc<RwLock<Vec<DashState>>>,
     titles: Option<Vec<String>>,
+    threshold_low: Option<f64>,
+    threshold_low_color: Color,
+    threshold_high: Option<f64>,
+    threshold_high_color: Color,
 
     command_tx: Option<UnboundedSender<Action>>,
     stop_signal: Arc<AtomicBool>,
     is_paused: Arc<AtomicBool>,
+}
+
+fn parse_color(s: &str) -> Color {
+    if s.starts_with('#') {
+        let s = if s.len() == 7 {
+            s.to_string()
+        } else if s.len() == 4 {
+            format!("#{}{}{}{}{}{}", &s[1..2], &s[1..2], &s[2..3], &s[2..3], &s[3..4], &s[3..4])
+        } else {
+            s.to_string()
+        };
+        if let Ok(hex) = u32::from_str_radix(&s[1..], 16) {
+            let r = ((hex >> 16) & 0xFF) as u8;
+            let g = ((hex >> 8) & 0xFF) as u8;
+            let b = (hex & 0xFF) as u8;
+            return Color::Rgb(r, g, b);
+        }
+    }
+    s.parse::<Color>().unwrap_or(Color::White)
 }
 
 impl Dash {
@@ -64,6 +87,10 @@ impl Dash {
             layout: args.layout.unwrap_or_default(),
             stop_signal,
             is_paused,
+            threshold_low: args.threshold_low,
+            threshold_low_color: parse_color(&args.threshold_low_color),
+            threshold_high: args.threshold_high,
+            threshold_high_color: parse_color(&args.threshold_high_color),
         }
     }
 }
@@ -151,10 +178,21 @@ impl Dash {
                             let state_n = &state[n];
                             let value =
                                 state_n.data[state_n.data.len().saturating_sub((i + 1).into())];
-                            Bar::default()
+                            let mut bar = Bar::default()
                                 .value(value as u64)
                                 .text_value("".to_owned())
-                                .style(Style::default().fg(color_map[n % color_map.len()]))
+                                .style(Style::default().fg(color_map[n % color_map.len()]));
+                            if let Some(threshold_low) = self.threshold_low {
+                                if value < threshold_low {
+                                    bar = bar.style(Style::default().fg(self.threshold_low_color));
+                                }
+                            }
+                            if let Some(threshold_high) = self.threshold_high {
+                                if value > threshold_high {
+                                    bar = bar.style(Style::default().fg(self.threshold_high_color));
+                                }
+                            }
+                            bar
                         })
                         .collect::<Vec<_>>(),
                 )
@@ -201,7 +239,20 @@ impl Dash {
         let start = chart_state.len().saturating_sub(width as usize);
         let bars = chart_state[start..]
             .iter()
-            .map(|&value| Bar::default().value(value as u64).text_value("".to_owned()))
+            .map(|&value| {
+                let mut bar = Bar::default().value(value as u64).text_value("".to_owned());
+                if let Some(threshold_low) = self.threshold_low {
+                    if value < threshold_low {
+                        bar = bar.style(Style::default().fg(self.threshold_low_color));
+                    }
+                }
+                if let Some(threshold_high) = self.threshold_high {
+                    if value > threshold_high {
+                        bar = bar.style(Style::default().fg(self.threshold_high_color));
+                    }
+                }
+                bar
+            })
             .collect::<Vec<_>>();
 
         let span_vec = generate_time_markers(width, 1);

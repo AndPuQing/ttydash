@@ -60,6 +60,22 @@ pub struct Cli {
 
     #[command(subcommand)]
     pub cmd: Option<Commands>,
+
+    /// Lower threshold for the chart
+    #[arg(long, value_name = "FLOAT")]
+    pub threshold_low: Option<f64>,
+
+    /// Color for values below the lower threshold
+    #[arg(long, value_name = "COLOR", default_value = "red")]
+    pub threshold_low_color: String,
+
+    /// Upper threshold for the chart
+    #[arg(long, value_name = "FLOAT")]
+    pub threshold_high: Option<f64>,
+
+    /// Color for values above the upper threshold
+    #[arg(long, value_name = "COLOR", default_value = "green")]
+    pub threshold_high_color: String,
 }
 
 #[derive(Subcommand, Debug, Clone)]
