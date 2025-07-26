@@ -39,7 +39,15 @@ fn parse_color(s: &str) -> Color {
         let s = if s.len() == 7 {
             s.to_string()
         } else if s.len() == 4 {
-            format!("#{}{}{}{}{}{}", &s[1..2], &s[1..2], &s[2..3], &s[2..3], &s[3..4], &s[3..4])
+            format!(
+                "#{}{}{}{}{}{}",
+                &s[1..2],
+                &s[1..2],
+                &s[2..3],
+                &s[2..3],
+                &s[3..4],
+                &s[3..4]
+            )
         } else {
             s.to_string()
         };
