@@ -7,7 +7,6 @@
         "<space>": "TogglePause"
     },
     "match_rules": {
-        "ping": "time=(\\d+\\.\\d+) ms",
-        "date": "\\b\\d{4}-\\d{2}-\\d{2}\\b"
+        "ping_ms": "time=(?<value>\\d+\\.\\d+)\\s+ms",
     }
 }

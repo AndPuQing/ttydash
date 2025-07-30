@@ -38,6 +38,10 @@ pub struct Cli {
     #[arg(short, long, value_name = "INT")]
     pub indices: Option<Vec<usize>>,
 
+    /// Regex to extract values, requires a "value" named capture group
+    #[arg(long, value_name = "PATTERN")]
+    pub regex: Option<Vec<String>>,
+
     /// Group together to show multiple charts in the same window
     #[clap(
         short,
@@ -90,17 +94,14 @@ pub enum Commands {
 #[derive(Args, Debug, Clone)]
 pub struct AddArgs {
     /// Name of the regex
-    #[arg(short, long)]
     pub name: String,
     /// The regex to add
-    #[arg(short, long)]
     pub regex: String,
 }
 
 #[derive(Args, Debug, Clone)]
 pub struct RemoveArgs {
     /// The name of the regex to remove
-    #[arg(short, long)]
     pub name: String,
 }
 

@@ -7,7 +7,8 @@ use super::Component;
 use crate::{
     action::Action,
     cli::{self, Cli},
-    data_pipeline::{DashState, DataPipeline},
+    config,
+    data_pipeline::{DashState, DataPipeline, Extractor},
 };
 use color_eyre::Result;
 
@@ -76,10 +77,33 @@ impl Dash {
         };
         let stop_signal = Arc::new(AtomicBool::new(false));
         let state = Arc::new(RwLock::new(vec![DashState::default()]));
+        let mut extractors = Vec::new();
+        let predefined_regexes = config::get_regexes().unwrap_or_default();
+        if let Some(regex_keys) = args.regex {
+            for key in regex_keys {
+                if let Some(re_str) = predefined_regexes.get(&key) {
+                    if let Ok(re) = regex::Regex::new(re_str) {
+                        extractors.push(Extractor::Regex(re));
+                    }
+                } else if let Ok(re) = regex::Regex::new(&key) {
+                    extractors.push(Extractor::Regex(re));
+                }
+            }
+        }
+        if let Some(units) = args.units {
+            for unit in units {
+                extractors.push(Extractor::Unit(unit));
+            }
+        }
+        if let Some(indices) = args.indices {
+            for index in indices {
+                extractors.push(Extractor::Index(index.saturating_sub(1)));
+            }
+        }
+
         let data_pipeline = DataPipeline::new(
             state.clone(),
-            args.units.unwrap_or_default(),
-            args.indices,
+            extractors,
             args.update_frequency,
             stop_signal.clone(),
             is_paused.clone(),

@@ -50,10 +50,15 @@ impl Default for DashState {
     }
 }
 
+pub enum Extractor {
+    Regex(regex::Regex),
+    Unit(String),
+    Index(usize),
+}
+
 pub struct DataPipeline {
     state: Arc<RwLock<Vec<DashState>>>,
-    units: Vec<String>,
-    indices: Option<Vec<usize>>,
+    extractors: Vec<Extractor>,
     update_frequency: u64,
     stop_signal: Arc<AtomicBool>,
     is_paused: Arc<AtomicBool>,
@@ -62,16 +67,14 @@ pub struct DataPipeline {
 impl DataPipeline {
     pub fn new(
         state: Arc<RwLock<Vec<DashState>>>,
-        units: Vec<String>,
-        indices: Option<Vec<usize>>,
+        extractors: Vec<Extractor>,
         update_frequency: u64,
         stop_signal: Arc<AtomicBool>,
         is_paused: Arc<AtomicBool>,
     ) -> Self {
         Self {
             state,
-            units,
-            indices,
+            extractors,
             update_frequency,
             stop_signal,
             is_paused,
@@ -88,44 +91,50 @@ impl DataPipeline {
             }
             if let Ok(Some(line)) = lines.next_line().await {
                 let mut state = self.state.write().unwrap();
-                if !self.units.is_empty() {
-                    for (i, unit) in self.units.iter().enumerate() {
-                        let unit_str = unit.to_string();
-                        let re = regex::Regex::new(&format!(r"(?i)\b(\d+(\.\d+)?)\s*{unit_str}\b"))
-                            .unwrap();
-                        if let Some(captures) = re.captures(&line) {
-                            let value = captures
-                                .get(1)
-                                .and_then(|v| v.as_str().parse::<f64>().ok())
-                                .unwrap_or(0.0);
-                            state[i].update(value);
-                            state[i].unit = unit_str.to_string();
-                        }
-                    }
-                } else if line.split_whitespace().next().is_some() {
+                if self.extractors.is_empty() {
                     let values: Vec<f64> = line
                         .split_whitespace()
                         .filter_map(|value_str| value_str.parse::<f64>().ok())
                         .collect();
-                    if let Some(indices) = &self.indices {
-                        if state.len() < indices.len() {
-                            state.resize(indices.len(), DashState::default());
+                    if state.len() < values.len() {
+                        state.resize(values.len(), DashState::default());
+                    }
+                    state
+                        .iter_mut()
+                        .zip(values.iter())
+                        .for_each(|(state_item, &value)| {
+                            state_item.update(value);
+                        });
+                } else {
+                    for (i, extractor) in self.extractors.iter().enumerate() {
+                        let value = match extractor {
+                            Extractor::Regex(re) => re
+                                .captures(&line)
+                                .and_then(|caps| caps.name("value"))
+                                .and_then(|v| v.as_str().parse::<f64>().ok()),
+                            Extractor::Unit(unit) => {
+                                let re = regex::Regex::new(&format!(
+                                    r"(?i)\b(\d+(\.\d+)?)\s*{unit}\b"
+                                ))
+                                .unwrap();
+                                re.captures(&line)
+                                    .and_then(|caps| caps.get(1))
+                                    .and_then(|v| v.as_str().parse::<f64>().ok())
+                            }
+                            Extractor::Index(index) => line
+                                .split_whitespace()
+                                .nth(*index)
+                                .and_then(|s| s.parse::<f64>().ok()),
+                        };
+                        if let Some(value) = value {
+                            if i >= state.len() {
+                                state.resize(i + 1, DashState::default());
+                            }
+                            state[i].update(value);
+                            if let Extractor::Unit(unit) = extractor {
+                                state[i].unit = unit.clone();
+                            }
                         }
-                        indices
-                            .iter()
-                            .filter_map(|&index| values.get(index - 1).copied())
-                            .enumerate()
-                            .for_each(|(i, value)| state[i].update(value));
-                    } else {
-                        if state.len() < values.len() {
-                            state.resize(values.len(), DashState::default());
-                        }
-                        state
-                            .iter_mut()
-                            .zip(values.iter())
-                            .for_each(|(state_item, &value)| {
-                                state_item.update(value);
-                            });
                     }
                 }
             }

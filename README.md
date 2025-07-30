@@ -70,6 +70,47 @@ ttydash -i 2 -i 1
 ```
 This will plot **index 2** first, followed by **index 1**.
 
+### 💡 **Advanced Data Extraction with Regular Expressions**
+For more complex data formats, you can use the `--regex` flag to specify a custom regular expression. The regex must contain a named capture group called `value`.
+
+**Example 1: Extracting a number with a prefix**
+If your input is `CPU usage: 80%`, you can extract the value `80` with the following command:
+```bash
+while true; echo "CPU usage: 80%"; sleep 0.5; end | ttydash --regex "CPU usage: (?<value>\d+)%"
+```
+
+**Example 2: Using predefined regular expressions**
+You can add, remove, and list predefined regular expressions using the `add`, `remove`, and `list` subcommands.
+
+To add a new regex for extracting the time from the `ping` command:
+```bash
+ttydash add ping "time=(?<value>\\d+\\.\\d+)\\s+ms"
+```
+
+To list all saved regular expressions:
+```bash
+ttydash list
+```
+
+To remove the "ping" regex:
+```bash
+ttydash remove ping
+```
+
+Once a regex is saved, you can use it by name with the `--regex` flag:
+```bash
+ping google.com | ttydash --regex ping
+```
+
+**Example 3: Combining different extraction methods**
+You can use multiple extraction flags at the same time. `ttydash` will create a separate chart for each extractor.
+
+```bash
+while true; echo "temp=36.6C hum=45%"; sleep 0.5; end | ttydash --regex "temp=(?<value>\d+\.\d+)C" --regex "hum=(?<value>\d+)%"
+```
+
+This will create two charts, one for temperature and one for humidity.
+
 ### 📈 **Group Chart**
 
 ```bash
@@ -97,6 +138,7 @@ Options:
   -t, --titles <STRING>         Chart title, will be shown at the top of the chart
   -u, --units <UNITS>           Unit to be used in the chart (e.g. "ms", "MB")
   -i, --indices <INT>           Index vector to be used in the chart
+      --regex <PATTERN>         Regex to extract values, requires a "value" named capture group
   -g, --group[=<GROUP>]         Group together to show multiple charts in the same window [default: false] [possible values: true, false]
       --update-frequency <INT>  Update frequency, i.e. number of milliseconds between updates [default: 1000]
   -l, --layout <STRING>         Layout of the chart [default: auto] [possible values: horizontal, vertical, auto]
