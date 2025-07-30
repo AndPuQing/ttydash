@@ -2541,7 +2541,7 @@ checksum = "343e926fc669bc8cde4fa3129ab681c63671bae288b1f1081ceee6d9d37904fc"
 
 [[package]]
 name = "ttydash"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "anyhow",
  "better-panic",
