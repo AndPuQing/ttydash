@@ -5,7 +5,7 @@ use std::time::Instant;
 use color_eyre::Result;
 use ratatui::{
     layout::{Constraint, Layout, Rect},
-    style::{Style, Stylize},
+    style::Style,
     text::Span,
     widgets::{Block, Padding, Paragraph},
     Frame,

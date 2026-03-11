@@ -19,7 +19,7 @@ use tokio::{sync::mpsc::UnboundedSender, task};
 
 #[derive(Debug, Default, Clone)]
 pub struct Dash {
-    bar_set: bar::Set,
+    bar_set: bar::Set<'static>,
     group: bool,
     layout: cli::Layout,
 
