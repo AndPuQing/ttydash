@@ -92,7 +92,10 @@ impl Dash {
         }
         if let Some(units) = args.units {
             for unit in units {
-                extractors.push(Extractor::Unit(unit));
+                let pattern = format!(r"(?i)\b([+-]?\d+(?:\.\d+)?)\s*{}\b", regex::escape(&unit));
+                if let Ok(regex) = regex::Regex::new(&pattern) {
+                    extractors.push(Extractor::Unit { unit, regex });
+                }
             }
         }
         if let Some(indices) = args.indices {
@@ -134,9 +137,13 @@ impl Drop for Dash {
 }
 
 fn generate_time_markers(window_size: u16, state_len: usize) -> Vec<Span<'static>> {
+    if window_size <= 5 {
+        return Vec::new();
+    }
+
     let time_labels = (1..)
         .map(|i| i * 30)
-        .take_while(|&t| t <= window_size - 5)
+        .take_while(|&t| t <= window_size.saturating_sub(5))
         .collect::<Vec<_>>();
     time_labels
         .iter()
@@ -145,7 +152,11 @@ fn generate_time_markers(window_size: u16, state_len: usize) -> Vec<Span<'static
             if pos < window_size {
                 let time_marker = format!("{time}s");
                 let time_marker_len = time_marker.len() + 1;
-                let spacing = "─".repeat(30 * state_len - *last_label_len);
+                let spacing = "─".repeat(
+                    30usize
+                        .saturating_mul(state_len)
+                        .saturating_sub(*last_label_len),
+                );
                 *last_label_len = time_marker_len;
                 Some(vec![
                     Span::raw(spacing),
@@ -166,7 +177,11 @@ fn generate_time_markers(window_size: u16, state_len: usize) -> Vec<Span<'static
 impl Dash {
     fn draw_grouped_chart(&mut self, frame: &mut Frame, area: &Rect) -> Result<()> {
         let state = self.state.read().unwrap();
-        let window_size = (area.width - 1) / state.len() as u16;
+        if state.is_empty() {
+            return Ok(());
+        }
+
+        let window_size = area.width.saturating_sub(1) / state.len() as u16;
 
         let span_vec = generate_time_markers(window_size, state.len());
 
@@ -202,37 +217,29 @@ impl Dash {
             Color::White,
         ];
 
-        let _bars = &(0..window_size)
-            .map(|i| {
-                BarGroup::default().bars(
-                    &(0..state.len())
-                        .map(|n| {
-                            let state_n = &state[n];
-                            let value =
-                                state_n.data[state_n.data.len().saturating_sub((i + 1).into())];
-                            let mut bar = Bar::default()
-                                .value(value as u64)
-                                .text_value("".to_owned())
-                                .style(Style::default().fg(color_map[n % color_map.len()]));
-                            if let Some(threshold_low) = self.threshold_low {
-                                if value < threshold_low {
-                                    bar = bar.style(Style::default().fg(self.threshold_low_color));
-                                }
-                            }
-                            if let Some(threshold_high) = self.threshold_high {
-                                if value > threshold_high {
-                                    bar = bar.style(Style::default().fg(self.threshold_high_color));
-                                }
-                            }
-                            bar
-                        })
-                        .collect::<Vec<_>>(),
-                )
-            })
-            .rev()
-            .for_each(|bar_group| {
-                chart = chart.clone().data(bar_group.clone());
-            });
+        for offset in (1..=window_size).rev() {
+            let bars = (0..state.len())
+                .map(|n| {
+                    let value = state[n].value_from_end(offset.into()).unwrap_or(0.0);
+                    let mut bar = Bar::default()
+                        .value(value as u64)
+                        .text_value("".to_owned())
+                        .style(Style::default().fg(color_map[n % color_map.len()]));
+                    if let Some(threshold_low) = self.threshold_low {
+                        if value < threshold_low {
+                            bar = bar.style(Style::default().fg(self.threshold_low_color));
+                        }
+                    }
+                    if let Some(threshold_high) = self.threshold_high {
+                        if value > threshold_high {
+                            bar = bar.style(Style::default().fg(self.threshold_high_color));
+                        }
+                    }
+                    bar
+                })
+                .collect::<Vec<_>>();
+            chart = chart.data(BarGroup::default().bars(&bars));
+        }
 
         frame.render_widget(chart, *area);
 
@@ -266,12 +273,10 @@ impl Dash {
         }
         let state = self.state.read().unwrap();
         let state = &state[i];
-        let chart_state = &state.data;
-        let width = area.width - 1;
-        let start = chart_state.len().saturating_sub(width as usize);
-        let bars = chart_state[start..]
-            .iter()
-            .map(|&value| {
+        let width = area.width.saturating_sub(1) as usize;
+        let bars = std::iter::repeat_n(0.0, width.saturating_sub(state.length))
+            .chain(state.recent_values(width))
+            .map(|value| {
                 let mut bar = Bar::default().value(value as u64).text_value("".to_owned());
                 if let Some(threshold_low) = self.threshold_low {
                     if value < threshold_low {
@@ -287,7 +292,7 @@ impl Dash {
             })
             .collect::<Vec<_>>();
 
-        let span_vec = generate_time_markers(width, 1);
+        let span_vec = generate_time_markers(width as u16, 1);
         let chart = BarChart::default()
             .data(BarGroup::default().bars(&bars))
             .bar_set(self.bar_set.clone())
@@ -339,7 +344,7 @@ fn is_prime(n: usize) -> bool {
         return false;
     }
     for i in 2..=((n as f64).sqrt() as usize) {
-        if n % i == 0 {
+        if n.is_multiple_of(i) {
             return false;
         }
     }
@@ -394,7 +399,7 @@ impl Component for Dash {
                             _ => {
                                 let rows = (2..=num_chart_states - 1)
                                     .rev()
-                                    .find(|&i| num_chart_states % i == 0)
+                                    .find(|&i| num_chart_states.is_multiple_of(i))
                                     .unwrap_or(1);
                                 let cols = num_chart_states / rows;
                                 (rows, cols)
@@ -426,7 +431,7 @@ impl Component for Dash {
                             _ => {
                                 let rows = (2..=num_chart_states - 1)
                                     .rev()
-                                    .find(|&i| num_chart_states % i == 0)
+                                    .find(|&i| num_chart_states.is_multiple_of(i))
                                     .unwrap_or(1);
                                 let cols = num_chart_states / rows;
                                 (rows, cols)
